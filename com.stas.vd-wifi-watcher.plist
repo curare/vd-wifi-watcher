@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd agent for vd-wifi-watcher.
+
+  RunAtLoad:  Start the watcher immediately when the user logs in.
+  KeepAlive:  Restart the watcher if it exits unexpectedly.
+  StandardOutPath / StandardErrorPath:  Log output to /tmp for debugging.
+
+  Install:  cp this file to ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.stas.vd-wifi-watcher.plist
+  Remove:   launchctl unload ~/Library/LaunchAgents/com.stas.vd-wifi-watcher.plist && rm ~/Library/LaunchAgents/com.stas.vd-wifi-watcher.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.stas.vd-wifi-watcher</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__SCRIPT_PATH__</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/vd-wifi-watcher.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/vd-wifi-watcher.log</string>
+</dict>
+</plist>
