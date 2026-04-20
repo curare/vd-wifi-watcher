@@ -4,11 +4,11 @@ Automatically disables Wi-Fi when [Virtual Desktop Streamer](https://www.vrdeskt
 
 ## The Problem
 
-On macOS, when both Wi-Fi and Ethernet are active on the same subnet, Virtual Desktop Streamer can fail to detect the Ethernet connection. The streamer's About page shows **"PC Ethernet: No"** even though the Ethernet adapter is connected and has the default route.
+On macOS, when both Wi-Fi and Ethernet are active on the same subnet, Virtual Desktop Streamer fails to detect the Ethernet connection. The streamer's About page shows **"PC Ethernet: No"** even though the Ethernet adapter is connected and responding.
 
-This happens because the streamer's network interface detection gets confused by having two active interfaces on the same `192.168.x.x` subnet. Disabling Wi-Fi forces the streamer to use the Ethernet adapter, which is faster and more stable for VR streaming anyway.
+The root cause: VD enumerates active `en*` interfaces and latches onto the Wi-Fi one (typically `en0`) because it appears first or has an active address on the LAN subnet. It does this regardless of which adapter is actually carrying traffic.
 
-Setting the macOS network service order (System Settings > Network > Set Service Order) does **not** fix this — the streamer uses its own interface detection logic.
+Setting the macOS network service order (System Settings → Network → Set Service Order) does **not** fix this — it affects the kernel routing table only; VD's interface detection logic bypasses it entirely with its own enumeration. Disabling Wi-Fi removes the competing interface, which is the only reliable workaround.
 
 ## How It Works
 
@@ -22,9 +22,9 @@ The script runs as a macOS [launchd](https://developer.apple.com/library/archive
 
 ## Requirements
 
-- macOS (tested on macOS 26.4 / Apple Silicon)
+- macOS (tested on macOS 15.4 Sequoia / Apple Silicon)
 - Virtual Desktop Streamer for Mac
-- Ethernet adapter (USB or Thunderbolt)
+- Ethernet adapter (USB-C, Thunderbolt, or built-in)
 - Wi-Fi on the default `en0` interface
 
 ## Install

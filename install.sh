@@ -1,6 +1,7 @@
 #!/bin/bash
 #
 # install.sh — Install the vd-wifi-watcher launchd agent.
+# Part of vd-wifi-watcher — auto-disables Wi-Fi while Virtual Desktop Streamer runs.
 #
 # This script:
 #   1. Copies the watcher script to ~/bin/
@@ -10,7 +11,7 @@
 set -euo pipefail
 
 SCRIPT_NAME="vd-wifi-watcher.sh"
-PLIST_NAME="com.stas.vd-wifi-watcher.plist"
+PLIST_NAME="local.vd-wifi-watcher.plist"
 INSTALL_DIR="$HOME/bin"
 PLIST_DIR="$HOME/Library/LaunchAgents"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

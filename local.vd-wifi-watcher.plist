@@ -2,18 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   launchd agent for vd-wifi-watcher.
+  Watches for Virtual Desktop Streamer and disables Wi-Fi while it runs.
 
   RunAtLoad:  Start the watcher immediately when the user logs in.
   KeepAlive:  Restart the watcher if it exits unexpectedly.
   StandardOutPath / StandardErrorPath:  Log output to /tmp for debugging.
 
-  Install:  cp this file to ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.stas.vd-wifi-watcher.plist
-  Remove:   launchctl unload ~/Library/LaunchAgents/com.stas.vd-wifi-watcher.plist && rm ~/Library/LaunchAgents/com.stas.vd-wifi-watcher.plist
+  Install:  cp this file to ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/local.vd-wifi-watcher.plist
+  Remove:   launchctl unload ~/Library/LaunchAgents/local.vd-wifi-watcher.plist && rm ~/Library/LaunchAgents/local.vd-wifi-watcher.plist
 -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.stas.vd-wifi-watcher</string>
+    <string>local.vd-wifi-watcher</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>

@@ -5,11 +5,14 @@
 # Automatically disables Wi-Fi when Virtual Desktop Streamer launches and
 # restores it when the streamer quits.
 #
-# Why: Virtual Desktop Streamer on macOS can fail to detect an Ethernet
-# connection when Wi-Fi is also active on the same subnet. Both interfaces
-# compete for LAN traffic, and VD's interface detection picks the wrong one,
-# reporting "PC Ethernet: No" in its settings. Disabling Wi-Fi while VD is
-# running forces it to use the Ethernet adapter.
+# Why: Virtual Desktop Streamer on macOS enumerates active en* interfaces and
+# latches onto the Wi-Fi one (typically en0) because it appears first or has
+# an active address on the LAN subnet. It does this even when Ethernet is
+# connected and responding, which causes the streamer's About page to show
+# "PC Ethernet: No". The macOS network service order (System Settings →
+# Network → Set Service Order) does NOT fix this — it affects the kernel
+# routing table only; VD's detection logic ignores it. Disabling Wi-Fi is the
+# only reliable workaround: it removes the competing interface entirely.
 #
 # How it works:
 #   - Polls for the VD Streamer process every POLL_INTERVAL seconds.
@@ -25,17 +28,22 @@
 #
 # Requirements:
 #   - macOS with networksetup (ships with macOS)
-#   - Wi-Fi interface must be en0 (default on all Macs)
+#   - Wi-Fi interface must be en0 (default on virtually all Macs — both Intel
+#     and Apple Silicon)
+#   - Ethernet adapter (USB-C, Thunderbolt, or built-in)
 #
 # Usage:
-#   Intended to run as a launchd agent (see com.stas.vd-wifi-watcher.plist).
+#   Intended to run as a launchd agent (see local.vd-wifi-watcher.plist).
 #   Can also be run manually: ./vd-wifi-watcher.sh
 
 POLL_INTERVAL=5           # Seconds between process checks
 WIFI_DEVICE="en0"         # macOS Wi-Fi interface (always en0)
 VD_PROCESS="Virtual Desktop Streamer"
+LOG_TAG="vd-wifi-watcher"
 
 # --- Helper functions --------------------------------------------------------
+
+log_msg() { logger -t "$LOG_TAG" "$1"; }
 
 wifi_is_on() {
     # networksetup returns a line like "Wi-Fi Power (en0): On"
@@ -55,9 +63,9 @@ VD_WAS_RUNNING=false    # Was VD running on the previous poll?
 # We don't know what state Wi-Fi was in before we started.
 if vd_is_running; then
     VD_WAS_RUNNING=true
-    logger -t vd-wifi-watcher "Started — VD already running, monitoring without toggling"
+    log_msg "Started — VD already running, monitoring without toggling"
 else
-    logger -t vd-wifi-watcher "Started — watching for VD Streamer"
+    log_msg "Started — watching for VD Streamer"
 fi
 
 # --- Main loop ---------------------------------------------------------------
@@ -69,10 +77,9 @@ while true; do
             if wifi_is_on; then
                 WIFI_WAS_ON=true
                 networksetup -setairportpower "$WIFI_DEVICE" off
-                logger -t vd-wifi-watcher "VD launched — Wi-Fi disabled"
+                log_msg "VD launched — Wi-Fi disabled"
             else
-                WIFI_WAS_ON=false
-                logger -t vd-wifi-watcher "VD launched — Wi-Fi was already off"
+                log_msg "VD launched — Wi-Fi was already off"
             fi
             VD_WAS_RUNNING=true
         fi
@@ -81,9 +88,9 @@ while true; do
             # Transition: VD just quit
             if [[ "$WIFI_WAS_ON" == true ]]; then
                 networksetup -setairportpower "$WIFI_DEVICE" on
-                logger -t vd-wifi-watcher "VD quit — Wi-Fi restored"
+                log_msg "VD quit — Wi-Fi restored"
             else
-                logger -t vd-wifi-watcher "VD quit — Wi-Fi was off before, leaving it off"
+                log_msg "VD quit — Wi-Fi was off before, leaving it off"
             fi
             WIFI_WAS_ON=false
             VD_WAS_RUNNING=false
