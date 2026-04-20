@@ -6,7 +6,8 @@
 
   RunAtLoad:  Start the watcher immediately when the user logs in.
   KeepAlive:  Restart the watcher if it exits unexpectedly.
-  StandardOutPath / StandardErrorPath:  Log output to /tmp for debugging.
+  StandardOutPath / StandardErrorPath:  Capture shell errors (if any).
+    Note: Event logs are written directly to /tmp/vd-wifi-watcher.log by the script.
 
   Install:  cp this file to ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/local.vd-wifi-watcher.plist
   Remove:   launchctl unload ~/Library/LaunchAgents/local.vd-wifi-watcher.plist && rm ~/Library/LaunchAgents/local.vd-wifi-watcher.plist

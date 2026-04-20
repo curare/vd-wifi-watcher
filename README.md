@@ -48,21 +48,25 @@ chmod +x uninstall.sh
 
 ## Logs
 
-Events are logged to the macOS system log and to a file:
+Events are logged to a file:
 
 ```bash
-# Log file
-cat /tmp/vd-wifi-watcher.log
+# View log file (real-time updates)
+tail -f /tmp/vd-wifi-watcher.log
 
-# System log (last 10 minutes)
-log show --predicate 'eventMessage contains "vd-wifi-watcher"' --last 10m
+# View full log
+cat /tmp/vd-wifi-watcher.log
 ```
 
 Example log output:
 ```
-VD launched — Wi-Fi disabled
-VD quit — Wi-Fi restored
+[2026-04-20 14:23:45] Started vd-wifi-watcher (PID: 12345)
+[2026-04-20 14:23:45] Watching for VD Streamer to launch
+[2026-04-20 14:24:10] VD launched — Wi-Fi disabled
+[2026-04-20 14:35:22] VD quit — Wi-Fi restored
 ```
+
+The script logs a heartbeat every 5 minutes so you can verify it's running. Errors (e.g., failed Wi-Fi toggle) are logged with an `ERROR:` prefix.
 
 ## Configuration
 

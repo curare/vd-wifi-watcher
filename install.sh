@@ -21,13 +21,23 @@ echo "Installing vd-wifi-watcher..."
 # Create ~/bin if it doesn't exist
 mkdir -p "$INSTALL_DIR"
 
+# Create ~/Library/LaunchAgents if it doesn't exist
+mkdir -p "$PLIST_DIR"
+
+# Warn if script already exists (will be overwritten)
+if [[ -f "$INSTALL_DIR/$SCRIPT_NAME" ]]; then
+    echo "  Warning: $INSTALL_DIR/$SCRIPT_NAME already exists. Overwriting..."
+fi
+
 # Copy the watcher script
 cp "$SCRIPT_DIR/$SCRIPT_NAME" "$INSTALL_DIR/$SCRIPT_NAME"
 chmod +x "$INSTALL_DIR/$SCRIPT_NAME"
 echo "  Installed script to $INSTALL_DIR/$SCRIPT_NAME"
 
 # Generate the plist with the actual script path substituted in
-sed "s|__SCRIPT_PATH__|$INSTALL_DIR/$SCRIPT_NAME|g" \
+# Use awk instead of sed to safely handle paths with special characters
+awk -v path="$INSTALL_DIR/$SCRIPT_NAME" \
+    '{gsub(/__SCRIPT_PATH__/, path); print}' \
     "$SCRIPT_DIR/$PLIST_NAME" > "$PLIST_DIR/$PLIST_NAME"
 echo "  Installed plist to $PLIST_DIR/$PLIST_NAME"
 

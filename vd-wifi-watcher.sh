@@ -23,8 +23,8 @@
 #       1. Restores Wi-Fi to its previous state.
 #   - If VD is already running when this script starts, it tracks the process
 #     but does NOT toggle Wi-Fi (we can't know what state Wi-Fi was in before).
-#   - All state transitions are logged via `logger` (viewable in Console.app
-#     or `log show --predicate 'eventMessage contains "vd-wifi-watcher"'`).
+#   - All state transitions are logged to /tmp/vd-wifi-watcher.log with timestamps.
+#   - A heartbeat is logged every 5 minutes so you can verify the script is alive.
 #
 # Requirements:
 #   - macOS with networksetup (ships with macOS)
@@ -36,14 +36,29 @@
 #   Intended to run as a launchd agent (see local.vd-wifi-watcher.plist).
 #   Can also be run manually: ./vd-wifi-watcher.sh
 
-POLL_INTERVAL=5           # Seconds between process checks
-WIFI_DEVICE="en0"         # macOS Wi-Fi interface (always en0)
+POLL_INTERVAL=5                            # Seconds between process checks
+WIFI_DEVICE="en0"                          # macOS Wi-Fi interface (always en0)
 VD_PROCESS="Virtual Desktop Streamer"
-LOG_TAG="vd-wifi-watcher"
+LOG_FILE="/tmp/vd-wifi-watcher.log"
+POLL_COUNT=0                                # Counter for heartbeat logging
+HEARTBEAT_INTERVAL=60                       # Log heartbeat every 60 polls (5 min at 5s interval)
+CONSECUTIVE_ERRORS=0                        # Track consecutive networksetup failures
+MAX_CONSECUTIVE_ERRORS=10                   # Exit after N consecutive failures
 
 # --- Helper functions --------------------------------------------------------
 
-log_msg() { logger -t "$LOG_TAG" "$1"; }
+# Initialize or open log file
+if [[ ! -f "$LOG_FILE" ]]; then
+    touch "$LOG_FILE"
+    chmod 644 "$LOG_FILE"
+fi
+
+log_msg() {
+    local msg="$1"
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] $msg" >> "$LOG_FILE"
+}
 
 wifi_is_on() {
     # networksetup returns a line like "Wi-Fi Power (en0): On"
@@ -51,7 +66,10 @@ wifi_is_on() {
 }
 
 vd_is_running() {
-    pgrep -f "$VD_PROCESS" >/dev/null 2>&1
+    # Use -x for exact name matching to avoid false positives
+    # If exact match fails, fall back to pattern match with validation
+    pgrep -x "$VD_PROCESS" >/dev/null 2>&1 || \
+    pgrep -f "^.*/.*$VD_PROCESS" >/dev/null 2>&1
 }
 
 # --- State tracking ----------------------------------------------------------
@@ -59,27 +77,48 @@ vd_is_running() {
 WIFI_WAS_ON=false       # Was Wi-Fi on before VD launched?
 VD_WAS_RUNNING=false    # Was VD running on the previous poll?
 
+# Log startup
+log_msg "Started vd-wifi-watcher (PID: $$)"
+
 # If VD is already running at script start, track it but don't touch Wi-Fi.
 # We don't know what state Wi-Fi was in before we started.
 if vd_is_running; then
     VD_WAS_RUNNING=true
-    log_msg "Started — VD already running, monitoring without toggling"
+    log_msg "VD already running on startup; monitoring without toggling"
 else
-    log_msg "Started — watching for VD Streamer"
+    log_msg "Watching for VD Streamer to launch"
 fi
 
 # --- Main loop ---------------------------------------------------------------
 
 while true; do
+    ((POLL_COUNT++))
+    
+    # Log heartbeat every HEARTBEAT_INTERVAL polls (helps verify script is alive)
+    if (( POLL_COUNT % HEARTBEAT_INTERVAL == 0 )); then
+        log_msg "Heartbeat: monitoring (VD_WAS_RUNNING=$VD_WAS_RUNNING, WIFI_WAS_ON=$WIFI_WAS_ON)"
+    fi
+    
     if vd_is_running; then
         if [[ "$VD_WAS_RUNNING" == false ]]; then
             # Transition: VD just launched
             if wifi_is_on; then
                 WIFI_WAS_ON=true
-                networksetup -setairportpower "$WIFI_DEVICE" off
-                log_msg "VD launched — Wi-Fi disabled"
+                if networksetup -setairportpower "$WIFI_DEVICE" off 2>/tmp/vd-wifi-watcher.err; then
+                    log_msg "VD launched — Wi-Fi disabled"
+                    CONSECUTIVE_ERRORS=0  # Reset error counter on success
+                else
+                    ((CONSECUTIVE_ERRORS++))
+                    log_msg "ERROR: Failed to disable Wi-Fi. $(cat /tmp/vd-wifi-watcher.err 2>/dev/null || echo 'Unknown error') [attempt $CONSECUTIVE_ERRORS/$MAX_CONSECUTIVE_ERRORS]"
+                    if (( CONSECUTIVE_ERRORS >= MAX_CONSECUTIVE_ERRORS )); then
+                        log_msg "FATAL: Too many consecutive errors. Exiting. Check networksetup permissions: id -G | grep -q 80"
+                        sleep 2  # Brief delay before exit to avoid rapid restart loops
+                        exit 1
+                    fi
+                fi
             else
                 log_msg "VD launched — Wi-Fi was already off"
+                CONSECUTIVE_ERRORS=0  # Reset error counter
             fi
             VD_WAS_RUNNING=true
         fi
@@ -87,10 +126,21 @@ while true; do
         if [[ "$VD_WAS_RUNNING" == true ]]; then
             # Transition: VD just quit
             if [[ "$WIFI_WAS_ON" == true ]]; then
-                networksetup -setairportpower "$WIFI_DEVICE" on
-                log_msg "VD quit — Wi-Fi restored"
+                if networksetup -setairportpower "$WIFI_DEVICE" on 2>/tmp/vd-wifi-watcher.err; then
+                    log_msg "VD quit — Wi-Fi restored"
+                    CONSECUTIVE_ERRORS=0  # Reset error counter on success
+                else
+                    ((CONSECUTIVE_ERRORS++))
+                    log_msg "ERROR: Failed to restore Wi-Fi. $(cat /tmp/vd-wifi-watcher.err 2>/dev/null || echo 'Unknown error') [attempt $CONSECUTIVE_ERRORS/$MAX_CONSECUTIVE_ERRORS]"
+                    if (( CONSECUTIVE_ERRORS >= MAX_CONSECUTIVE_ERRORS )); then
+                        log_msg "FATAL: Too many consecutive errors. Exiting. Check networksetup permissions: id -G | grep -q 80"
+                        sleep 2  # Brief delay before exit to avoid rapid restart loops
+                        exit 1
+                    fi
+                fi
             else
                 log_msg "VD quit — Wi-Fi was off before, leaving it off"
+                CONSECUTIVE_ERRORS=0  # Reset error counter
             fi
             WIFI_WAS_ON=false
             VD_WAS_RUNNING=false
